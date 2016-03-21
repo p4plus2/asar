@@ -13,6 +13,7 @@ bool math_pri=true;
 bool math_round=false;
 
 extern bool emulatexkas;
+extern lightweight_map<string, snes_struct> structs;
 
 //int bp(const char * str)
 //{
@@ -23,9 +24,9 @@ extern bool emulatexkas;
 #define error(str) throw str
 static const char * str;
 
-static long double getnumcore();
-static long double getnum();
-static long double eval(int depth);
+static int64_t getnumcore();
+static int64_t getnum();
+static int64_t eval(int depth);
 
 bool confirmname(const char * name);
 
@@ -74,20 +75,20 @@ const char * createuserfunc(const char * name, const char * arguments, const cha
 }
 
 char ** funcargnames;
-long double * funcargvals;
+int64_t * funcargvals;
 int numuserfuncargs;
 
 
 int snestopc_pick(int addr);
 
-static long double validaddr(long double in, long double len)
+static int64_t validaddr(int64_t in, int64_t len)
 {
 	int addr=snestopc_pick(in);
 	if (addr<0 || addr+len-1>romlen_r) return 0;
 	else return 1;
 }
 
-static long double read1(long double in)
+static int64_t read1(int64_t in)
 {
 	int addr=snestopc_pick(in);
 	if (addr<0) error("read1(): Address doesn't map to ROM.");
@@ -97,7 +98,7 @@ static long double read1(long double in)
 	return 0;
 }
 
-static long double read2(long double in)
+static int64_t read2(int64_t in)
 {
 	int addr=snestopc_pick(in);
 	if (addr<0) error("read2(): Address doesn't map to ROM.");
@@ -108,7 +109,7 @@ static long double read2(long double in)
 	return 0;
 }
 
-static long double read3(long double in)
+static int64_t read3(int64_t in)
 {
 	int addr=snestopc_pick(in);
 	if (addr<0) error("read3(): Address doesn't map to ROM.");
@@ -120,7 +121,7 @@ static long double read3(long double in)
 	return 0;
 }
 
-static long double read4(long double in)
+static int64_t read4(int64_t in)
 {
 	int addr=snestopc_pick(in);
 	if (addr<0) error("read4(): Address doesn't map to ROM.");
@@ -133,7 +134,7 @@ static long double read4(long double in)
 	return 0;
 }
 
-static long double read1s(long double in, long double def)
+static int64_t read1s(int64_t in, int64_t def)
 {
 	int addr=snestopc_pick(in);
 	if (addr<0) return def;
@@ -143,7 +144,7 @@ static long double read1s(long double in, long double def)
 	return 0;
 }
 
-static long double read2s(long double in, long double def)
+static int64_t read2s(int64_t in, int64_t def)
 {
 	int addr=snestopc_pick(in);
 	if (addr<0) return def;
@@ -154,7 +155,7 @@ static long double read2s(long double in, long double def)
 	return 0;
 }
 
-static long double read3s(long double in, long double def)
+static int64_t read3s(int64_t in, int64_t def)
 {
 	int addr=snestopc_pick(in);
 	if (addr<0) return def;
@@ -166,7 +167,7 @@ static long double read3s(long double in, long double def)
 	return 0;
 }
 
-static long double read4s(long double in, long double def)
+static int64_t read4s(int64_t in, int64_t def)
 {
 	int addr=snestopc_pick(in);
 	if (addr<0) return def;
@@ -179,14 +180,29 @@ static long double read4s(long double in, long double def)
 	return 0;
 }
 
+
+static int struct_size(const char *name)
+{
+	snes_struct structure;
+	if(!structs.find(name, structure)) error("Struct not found.");
+	return structure.struct_size;
+}
+
+static int object_size(const char *name)
+{
+	snes_struct structure;
+	if(!structs.find(name, structure)) error("Struct not found.");
+	return structure.object_size;
+}
+
 extern unsigned int table[256];
 
-static long double getnumcore()
+static int64_t getnumcore()
 {
 	if (*str=='(')
 	{
 		str++;
-		long double rval=eval(0);
+		int64_t rval=eval(0);
 		if (*str!=')') error("Mismatched parentheses.");
 		str++;
 		return rval;
@@ -216,14 +232,30 @@ static long double getnumcore()
 	if (isalpha(*str) || *str=='_' || *str=='.' || *str=='?')
 	{
 		const char * start=str;
-		while (isalnum(*str) || *str=='_') str++;
+		while (isalnum(*str) || *str=='_' || *str=='.') str++;
 		int len=str-start;
 		while (*str==' ') str++;
 		if (*str=='(')
 		{
 			str++;
 			while (*str==' ') str++;
-			autoarray<long double> params;
+			if (!strncasecmp(start, "sizeof", len)){
+				string label;
+				while (*str==' ') str++;
+				while(isalnum(*str) || *str=='.') label += *(str++);
+				//printf("%s\n", (const char*)label);
+				if(*(str++) != ')') error("Malformed sizeof call.");
+				return struct_size(label);
+			}
+			if (!strncasecmp(start, "objectsize", len)){
+				string label;
+				while (*str==' ') str++;
+				while(isalnum(*str) || *str=='.') label += *(str++);
+				//printf("%s\n", (const char*)label);
+				if(*(str++) != ')') error("Malformed objectsize call.");
+				return object_size(label);
+			}
+			autoarray<int64_t> params;
 			int numparams=0;
 			if (*str!=')')
 			{
@@ -245,14 +277,14 @@ static long double getnumcore()
 					error("Malformed function call.");
 				}
 			}
-			long double rval;
+			int64_t rval;
 			for (int i=0;i<numuserfunc;i++)
 			{
 				if ((int)strlen(userfunc[i].name)==len && !strncmp(start, userfunc[i].name, len))
 				{
 					if (userfunc[i].numargs!=numparams) error("Wrong number of parameters to function.");
 					char ** oldfuncargnames=funcargnames;
-					long double * oldfuncargvals=funcargvals;
+					int64_t * oldfuncargvals=funcargvals;
 					const char * oldstr=str;
 					int oldnumuserfuncargs=numuserfuncargs;
 					funcargnames=userfunc[i].arguments;
@@ -271,6 +303,7 @@ static long double getnumcore()
 #define func(name, numpar, code)                                   \
 					if (!strncasecmp(start, name, len))                      \
 					{                                                        \
+						printf("%f\n", (double)(code));	\
 						if (numparams==numpar) return (code);                  \
 						else error("Wrong number of parameters to function."); \
 					}
@@ -334,7 +367,30 @@ static long double getnumcore()
 				if (!strncmp(start, funcargnames[i], len)) return funcargvals[i];
 			}
 			foundlabel=true;
+			const char *old_start = start;
 			int i=labelval(&start);
+			bool scope_passed = false;
+			bool subscript_passed = false;
+			while(str < start)
+			{
+				if(*str == '.') scope_passed = true;
+				if(*(str++) == '[')
+				{
+					if(subscript_passed)
+					{
+						error("Multiple subscript operators is invalid");
+						break;
+					}
+					subscript_passed = true;
+					if(scope_passed)
+					{
+						error("Invalid array subscript after first scope resolution.");
+						break;
+					}
+					string struct_name = substr(old_start, str - old_start - 1);
+					i += eval(0) * object_size(struct_name);
+				}
+			}
 			str=start;
 			//if (start!=str) error("Internal error. Send this patch to Alcaro.");//not gonna add sublabel/macrolabel support here
 			if (i==-1) forwardlabel=true;
@@ -351,17 +407,17 @@ static long double getnumcore()
 	error("Invalid number.");
 }
 
-static long double sanitize(long double val)
+static int64_t sanitize(int64_t val)
 {
 	if (val!=val) error("NaN encountered.");
 	if (math_round) return (int)val;
 	return val;
 }
 
-static long double getnum()
+static int64_t getnum()
 {
 	while (*str==' ') str++;
-#define prefix(name, func) if (!strncasecmp(str, name, strlen(name))) { str+=strlen(name); long double val=getnum(); return sanitize(func); }
+#define prefix(name, func) if (!strncasecmp(str, name, strlen(name))) { str+=strlen(name); int64_t val=getnum(); return sanitize(func); }
 	prefix("-", -val);
 	prefix("~", ~(int)val);
 	prefix("+", val);
@@ -373,7 +429,7 @@ static long double getnum()
 extern autoarray<int> poslabels;
 extern autoarray<int> neglabels;
 
-static long double eval(int depth)
+static int64_t eval(int depth)
 {
 	if (str[0]=='+' || str[0]=='-')
 	{
@@ -391,10 +447,10 @@ static long double eval(int depth)
 	}
 notposneglabel:
 	recurseblock rec;
-	long double left=getnum();
-	long double right;
+	int64_t left=getnum();
+	int64_t right;
 	while (*str==' ') str++;
-	while (*str && *str!=')' && *str!=',')
+	while (*str && *str!=')' && *str!=','&& *str!=']')
 	{
 		while (*str==' ') str++;
 		if (math_round) left=(int)left;
@@ -436,7 +492,7 @@ notposneglabel:
 }
 
 //static autoptr<char*> freeme;
-long double math(const char * s, const char ** e)
+int64_t math(const char * s, const char ** e)
 {
 	//free(freeme);
 	//freeme=NULL;
@@ -445,7 +501,7 @@ long double math(const char * s, const char ** e)
 	try
 	{
 		str=s;
-		long double rval=eval(0);
+		int64_t rval=eval(0);
 		if (*str)
 		{
 			if (*str==',') error("Invalid input.");

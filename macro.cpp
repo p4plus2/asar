@@ -123,7 +123,9 @@ void callmacro(const char * data)
 	*endpar=0;
 	autoptr<const char **> args;
 	int numargs=0;
-	if (*startpar) args=(const char**)qpsplit(strdup(startpar), ",", &numargs);
+	char *tmp_asd=strdup(startpar);
+	if (*startpar) args=(const char**)qpsplit(tmp_asd, ",", &numargs);
+	//free(tmp_asd);
 	if (numargs!=thisone->numargs) merror("Wrong number of arguments to macro");
 	macrorecursion++;
 	int startif=numif;

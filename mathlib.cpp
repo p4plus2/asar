@@ -14,16 +14,16 @@ bool math_xorexp=false;
 #define error(str) throw str
 static const char * str;
 
-static long double getnumcore();
-static long double getnum();
-static long double eval(int depth);
+static int64_t getnumcore();
+static int64_t getnum();
+static int64_t eval(int depth);
 
-static long double getnumcore()
+static int64_t getnumcore()
 {
 	if (*str=='(')
 	{
 		str++;
-		long double rval=eval(0);
+		int64_t rval=eval(0);
 		if (*str!=')') error("Mismatched parentheses.");
 		str++;
 		return rval;
@@ -53,7 +53,7 @@ static long double getnumcore()
 		{
 			str++;
 			while (*str==' ') str++;
-			autoarray<long double> params;
+			autoarray<int64_t> params;
 			int numparams=0;
 			if (*str!=')')
 			{
@@ -137,17 +137,17 @@ static long double getnumcore()
 	error("Invalid number.");
 }
 
-static long double sanitize(long double val)
+static int64_t sanitize(int64_t val)
 {
 	if (val!=val) error("NaN encountered.");
 	if (math_round) return (int)val;
 	return val;
 }
 
-static long double getnum()
+static int64_t getnum()
 {
 	while (*str==' ') str++;
-#define prefix(name, func) if (!strnicmp(str, name, strlen(name))) { str+=strlen(name); long double val=getnum(); return sanitize(func); }
+#define prefix(name, func) if (!strnicmp(str, name, strlen(name))) { str+=strlen(name); int64_t val=getnum(); return sanitize(func); }
 	prefix("-", -val);
 	prefix("~", ~(int)val);
 	prefix("+", val);
@@ -156,10 +156,10 @@ static long double getnum()
 	return sanitize(getnumcore());
 }
 
-static long double eval(int depth)
+static int64_t eval(int depth)
 {
-	long double left=getnum();
-	long double right;
+	int64_t left=getnum();
+	int64_t right;
 	while (*str==' ') str++;
 	while (*str && *str!=')' && *str!=',')
 	{
@@ -202,12 +202,12 @@ static long double eval(int depth)
 	return left;
 }
 
-long double math(const char * s, const char ** e)
+int64_t math(const char * s, const char ** e)
 {
 	try
 	{
 		str=s;
-		long double rval=eval(0);
+		int64_t rval=eval(0);
 		if (*str)
 		{
 			if (*str==',') error("Invalid input.");

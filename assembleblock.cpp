@@ -18,6 +18,17 @@ bool emulatexkas;
 
 extern int optimizeforbank;
 
+int old_snespos;
+int old_startpos;
+int old_optimizeforbank;
+int struct_base;
+string struct_name;
+string struct_parent;
+bool in_struct = false;
+bool in_sub_struct = false;
+
+lightweight_map<string, snes_struct> structs;
+
 template<typename t> void error(int neededpass, const char * e_);
 void warn(const char * e);
 
@@ -299,7 +310,7 @@ string labelname(const char ** rawname, bool define=false)
 		name=S":macro"+dec(calledmacros)+"_";
 		rawname++;
 	}
-	else
+	else if(!in_struct && !in_sub_struct)
 	{
 		for (i=0;(*rawname=='.');i++) rawname++;
 		if (!isualnum(*rawname)) error(0, "Invalid label name.");
@@ -310,11 +321,44 @@ string labelname(const char ** rawname, bool define=false)
 			name+=S sublabels[i-1]+"_";
 		}
 	}
-	if (!isualnum(*rawname)) error(0, "Invalid label name.");
-	while (isualnum(*rawname))
+	if(in_sub_struct)
 	{
+		name += struct_parent + ".";
+	}
+	
+	if(in_struct || in_sub_struct)
+	{
+		name += struct_name;
+		name += '.';
+		rawname++;
+	}
+
+	if (!isualnum(*rawname)) error(0, "Invalid label name.");
+	while (isualnum(*rawname) || *rawname =='.' || *rawname == '[')
+	{
+		if(!in_struct && !in_sub_struct && *rawname == '[')
+		{
+			bool invalid = true;
+			while(isprint(*rawname)) 
+			{
+				if(*(rawname++) == ']')
+				{
+					invalid = false;
+					break;
+				}
+			}
+			if(invalid)
+			{
+				error(0, "Invalid label name, missing array closer");
+			}
+		}
+		else if(*rawname == '{')
+		{
+			error(0,  "array syntax invalid inside structs");
+		}
 		name+=*(rawname++);
 	}
+	
 	if (define && i>=0)
 	{
 		sublabels.reset(i);
@@ -557,7 +601,8 @@ void initstuff()
 void finishpass()
 {
 //defines.traverse(nerf);
-	if (pushpcnum && pass==0) nullerror("pushpc without matching pullpc");
+	if (in_struct || in_sub_struct) nullerror("struct without matching endstruct");
+	else if (pushpcnum && pass==0) nullerror("pushpc without matching pullpc");
 	freespaceend();
 	if (arch==arch_65816) asend_65816();
 	if (arch==arch_spc700) asend_spc700();
@@ -579,7 +624,7 @@ bool addlabel(const char * label, int pos=-1)
 	if (label[strlen(label)-1]==':' || label[0]=='.' || label[0]=='?')
 	{
 		if (!label[1]) return false;
-		bool requirecolon=(label[0]!='.');
+		bool requirecolon=(label[0]!='.') && (in_struct || in_sub_struct);
 		string name=labelname(&label, label[0]!='?');
 		if (label[0]==':') label++;
 		else if (requirecolon) error(0, "Broken label definition");
@@ -609,6 +654,32 @@ extern int callerline;
 extern int macrorecursion;
 
 int freespaceuse=0;
+
+//these are used during struct manipulation
+void push_pc()
+{
+	pushpc[pushpcnum].arch=arch;
+	pushpc[pushpcnum].snespos=snespos;
+	pushpc[pushpcnum].snesstart=startpos;
+	pushpc[pushpcnum].snesposreal=realsnespos;
+	pushpc[pushpcnum].snesstartreal=realstartpos;
+	pushpc[pushpcnum].freeid=freespaceid;
+	pushpc[pushpcnum].freeex=freespaceextra;
+	pushpc[pushpcnum].freest=freespacestart;
+	pushpcnum++;
+}
+
+void pop_pc()
+{
+	pushpcnum--;
+	snespos=pushpc[pushpcnum].snespos;
+	startpos=pushpc[pushpcnum].snesstart;
+	realsnespos=pushpc[pushpcnum].snesposreal;
+	realstartpos=pushpc[pushpcnum].snesstartreal;
+	freespaceid=pushpc[pushpcnum].freeid;
+	freespaceextra=pushpc[pushpcnum].freeex;
+	freespacestart=pushpc[pushpcnum].freest;
+}
 
 void assembleblock(const char * block)
 {
@@ -678,13 +749,13 @@ void assembleblock(const char * block)
 				{
 					//this part is not mentioned in the manual
 					int val=getnum(nextword[0]+1);
-					if (foundlabel) error(1, S"Label in "+lower(word[0])+" command");
+					//if (foundlabel) error(1, S"Label in "+lower(word[0])+" command");
 					thiscond=!(val>0);
 				}
 				else
 				{
 					int val=getnum(nextword[0]);
-					if (foundlabel) error(1, S"Label in "+lower(word[0])+" command");
+					//if (foundlabel) error(1, S"Label in "+lower(word[0])+" command");
 					thiscond=(val>0);
 				}
 				
@@ -699,9 +770,9 @@ void assembleblock(const char * block)
 			{
 				if (!nextword[2]) error(0, S"Broken "+lower(word[0])+" command");
 				int par1=getnum(nextword[0]);
-				if (foundlabel) error(1, S"Label in "+lower(word[0])+" command");
+				//if (foundlabel) error(1, S"Label in "+lower(word[0])+" command");
 				int par2=getnum(nextword[2]);
-				if (foundlabel) error(1, S"Label in "+lower(word[0])+" command");
+				//if (foundlabel) error(1, S"Label in "+lower(word[0])+" command");
 				if(0);
 				else if (!strcmp(nextword[1], ">"))  thiscond=(par1>par2);
 				else if (!strcmp(nextword[1], "<"))  thiscond=(par1<par2);
@@ -927,7 +998,7 @@ void assembleblock(const char * block)
 			return;
 		}
 		int num=getnum(word[2]);
-		if (foundlabel) error(0, "Setting labels to each other is not valid");
+		//if (foundlabel) error(0, "Setting labels to each other is not valid");
 		if (!confirmname(word[0])) error(0, "Invalid label name");
 		setlabel(word[0], num);
 	}
@@ -944,6 +1015,89 @@ void assembleblock(const char * block)
 		startpos=num;
 		realstartpos=num;
 	}
+#define ret_error(message) { error(0, message); return; }
+	else if (is("struct"))
+	{
+		if (in_struct || in_sub_struct) ret_error("can not nest structs.");
+		if(numwords < 2) ret_error("Missing struct parameters");
+		if(numwords > 4) ret_error("Too many struct parameters");
+		if (!confirmname(word[1])) ret_error("Invalid struct name");
+		
+		snes_struct structure;
+		if(structs.find(word[1], structure) && pass == 0) ret_error("Struct already exists, choose a different name");
+		
+		old_snespos = snespos;
+		old_startpos = startpos;
+		old_optimizeforbank = optimizeforbank;
+		
+		in_struct = numwords == 2 || numwords == 3;
+		in_sub_struct = numwords == 4;
+		
+		if(numwords == 3)
+		{
+			int base = getnum(word[2]);
+			if (base&~0xFFFFFF) ret_error("Address out of bounds");
+			snespos=base;
+			startpos=base;
+		}
+		else if(numwords == 4)
+		{
+			if (strcasecmp(word[2], "extends")) ret_error("missing extends keyword");
+			if (!confirmname(word[3])) ret_error("Invalid parent name");
+			struct_parent = word[3];
+			
+			if(!structs.find(struct_parent, structure)) ret_error("parent struct does not exist");
+			
+			snespos=structure.base_end;
+			startpos=structure.base_end;
+		}
+		
+		push_pc();
+		
+		optimizeforbank=-1;
+		
+		struct_name = word[1];
+		struct_base = snespos;
+	}
+	else if (is("endstruct"))
+	{
+		if(numwords != 1 && numwords != 3) ret_error("Invalid endstruct parameter count");
+		if(numwords == 3 && strcasecmp(word[1], "align")) ret_error("Expected align parameter");
+		if (!in_struct && !in_sub_struct) ret_error("you're not even in a struct.");
+		
+		int alignment = numwords == 3 ? getnum(word[2]) : 1;
+		if(alignment < 1) ret_error("Alignment must be >= 1");
+		
+		snes_struct structure;
+		structure.base_end = snespos;
+		structure.struct_size = alignment * ((snespos - struct_base + alignment - 1) / alignment);
+		structure.object_size = structure.struct_size;
+		
+		if(in_struct)
+		{	
+			structs.insert(struct_name, structure);
+		}
+		else if(in_sub_struct)
+		{
+			snes_struct parent;
+			structs.find(struct_parent, parent);
+			
+			if(parent.object_size < parent.struct_size + structure.struct_size){
+				parent.object_size = parent.struct_size + structure.struct_size;
+			}
+			
+			structs.insert(struct_parent + "." + struct_name, structure);
+			structs.insert(struct_parent, parent);
+		}
+		
+		pop_pc();
+		in_struct = false;
+		in_sub_struct = false;
+		snespos = old_snespos;
+		startpos = old_startpos;
+		optimizeforbank = old_optimizeforbank;
+	}
+#undef ret_error
 	else if (is1("base"))
 	{
 		if (!stricmp(par, "off"))
@@ -1121,8 +1275,9 @@ void assembleblock(const char * block)
 				if (pass==2)
 				{
 					int start=ratsstart(num);
-					if (start>=num || start<0)
+					if (start>=num || start<0){
 						error(2, "Don't autoclean a label at the end of a freespace block, you'll remove some stuff you're not supposed to remove.");
+					}
 				}
 				//freespaceorglen[targetid]=read2(ratsloc-4)+1;
 				freespaceorgpos[targetid]=ratsloc;
@@ -1583,6 +1738,7 @@ bool assemblemapper(char** word, int numwords)
 			sa1banks[1]=(par[2]-'0')<<20;
 			sa1banks[4]=(par[4]-'0')<<20;
 			sa1banks[5]=(par[6]-'0')<<20;
+			
 		}
 		else
 		{

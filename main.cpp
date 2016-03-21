@@ -27,7 +27,7 @@ extern char blockreleasedebug[(asarver_beta)?1:-1];
 unsigned const char * romdata_r;
 int romlen_r;
 
-long double math(const char * mystr, const char ** e);
+int64_t math(const char * mystr, const char ** e);
 void initmathcore();
 
 int pass;
@@ -159,6 +159,14 @@ static int getlenforlabel(int snespos, int thislabel, bool exists)
 		else if ((thislabel>>16)==optimizeforbank) return 2;
 		else return 3;
 	}
+	else if((thislabel >> 16) == 0x7E && (thislabel & 0xFFFF) < 0x100)
+	{
+		return 1;
+	}
+	else if((thislabel >> 16) == 0x7E && (thislabel & 0xFFFF) < 0x2000)
+	{
+		return 2;
+	}
 	else if ((thislabel|snespos)&0xFF000000)
 	{
 		if ((thislabel^snespos)&0xFF000000) return 3;
@@ -262,7 +270,8 @@ int getnum(const char * str)
 //	}
 //notposneglabel:
 	const char * e;
-	int num=math(str, &e);
+	//int num=math(str, &e);
+	unsigned int num=math(str, &e);
 	if (e)
 	{
 		error<errblock>(1, e);

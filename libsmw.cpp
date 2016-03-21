@@ -46,7 +46,7 @@ int ratsstart(int snesaddr)
 				(start[i+4]^start[i+6])==0xFF && (start[i+5]^start[i+7])==0xFF)
 		{
 			if ((start[i+4]|(start[i+5]<<8))>0x10000-i-8-1) return pctosnes(start-romdata+i);
-			else return -1;
+			return -1;
 		}
 	}
 	return -1;
@@ -225,6 +225,7 @@ int getpcfreespace(int size, bool isforcode, bool autoexpand, bool respectbankbo
 			goto rebootsa1rom;
 		}
 	}
+
 	return -1;
 }
 

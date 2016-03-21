@@ -31,6 +31,14 @@ template<typename t> void error(int neededpass, const char * str);
 //void write3(unsigned int num);
 //void write4(unsigned int num);
 
+struct snes_struct{
+	string parent;
+	int base_end;
+	int struct_size;
+	int object_size;
+};
+
+
 extern int pass;
 extern bool foundlabel;
 

@@ -35,6 +35,7 @@ bool asblock_65816(char** word, int numwords)
 #define getvars(optbank) num=(pass!=0)?getnum(par):0; if (word[0][3]=='.') { len=getlenfromchar(word[0][4]); word[0][3]='\0'; } else len=getlen(par, optbank)
 #define match(left, right) (word[1] && stribegin(par, left) && striend(par, right))
 #define init(left, right) itrim(par, left, right); getvars(false)
+#define init2(left, right) itrim(par, left, right); getvars(true)
 #define bankoptinit(left, right) itrim(par, left, right); getvars(true)
 #define blankinit() len=1; num=0
 #define end() return false
@@ -42,8 +43,9 @@ bool asblock_65816(char** word, int numwords)
 #define as1(    op, byte) if (is(op) && len==1) { write1(byte); write1(num); return true; }
 #define as2(    op, byte) if (is(op) && len==2) { write1(byte); write2(num); return true; } \
 													/*if (is(op) && len==3 && emulate) { write1(byte); write2(num); return true; }*/
+#define as12(   op, byte) if (is(op) && (len==1 || len==2)) { write1(byte); write2(num); return true; }
 #define as3(    op, byte) if (is(op) && len==3) { write1(byte); write3(num); return true; }
-//#define as23(   op, byte) if (is(op) && (len==2 || len==3)) { write1(byte); write2(num); return true; }
+#define as23(   op, byte) if (is(op) && (len==2 || len==3)) { write1(byte); write2(num); return true; }
 #define as32(   op, byte) if (is(op) && (len==2 || len==3)) { write1(byte); write3(num); return true; }
 #define as_a(   op, byte) if (is(op)) { if (len==1) { write1(byte); write1(num); } \
 																					 else { write1(byte); write2(num); } return true; }
@@ -120,15 +122,15 @@ bool asblock_65816(char** word, int numwords)
 	{
 		init("(", ",x)");
 		the8(0x01, 1);
-		as2("JMP", 0x7C); as2("JSR", 0xFC);
+		as23("JMP", 0x7C); as23("JSR", 0xFC);
 		end();
 	}
 	else if (match("(", ")") && confirmqpar(substr(word[1]+1, strlen(word[1]+1)-1)))
 	{
-		init("(", ")");
+		init2("(", ")");
 		the8(0x12, 1);
 		as1("PEI", 0xD4);
-		as2("JMP", 0x6C);
+		as12("JMP", 0x6C);
 		end();
 	}
 	else if (match("", ",x"))

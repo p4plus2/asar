@@ -510,7 +510,7 @@ public:
 	
 	bool find(string key, Data& result)
 	{
-		if (!map.exists(key)) return false;
+		if (!map.exists(key))  return false; 
 		result=map.find(key);
 		return true;
 	}

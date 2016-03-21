@@ -205,7 +205,7 @@ EXPORT bool asar_patch(const char * patchloc, char * romdata_, int buflen, int *
 	if (buflen<romlen) error<errnull>(pass, "The given buffer is too small to contain the resulting ROM.");
 	if (errored)
 	{
-		free(romdata);
+		if (buflen!=maxromsize) free(romdata);
 		return false;
 	}
 	*romlen_=romlen;
@@ -248,7 +248,9 @@ int labelsinldata=0;
 static void addlabel(const string & name, unsigned int & value)
 {
 	labeldata label;
-	label.name=strdup(name);
+	char *tmp_asdasd = strdup(name);
+	label.name=tmp_asdasd;
+	//free(tmp_asdasd);
 	label.location=value&0xFFFFFF;
 	ldata[labelsinldata++]=label;
 }
@@ -313,11 +315,11 @@ EXPORT const definedata * asar_getalldefines(int * count)
 	return ddata;
 }
 
-long double math(const char * mystr, const char ** e);
+int64_t math(const char * mystr, const char ** e);
 extern autoarray<string> sublabels;
 extern string ns;
 
-EXPORT double asar_math(const char * str, const char ** e)//degrading to normal double because long double seems volatile
+EXPORT int64_t asar_math(const char * str, const char ** e)//degrading to normal double because int64_t seems volatile
 {
 	ns="";
 	sublabels.reset();
