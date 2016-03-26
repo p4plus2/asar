@@ -325,7 +325,7 @@ string labelname(const char ** rawname, bool define=false)
 	{
 		name += struct_parent + ".";
 	}
-	
+
 	if(in_struct || in_sub_struct)
 	{
 		name += struct_name;
@@ -339,7 +339,7 @@ string labelname(const char ** rawname, bool define=false)
 		if(!in_struct && !in_sub_struct && *rawname == '[')
 		{
 			bool invalid = true;
-			while(isprint(*rawname)) 
+			while(isprint(*rawname))
 			{
 				if(*(rawname++) == ']')
 				{
@@ -358,7 +358,7 @@ string labelname(const char ** rawname, bool define=false)
 		}
 		name+=*(rawname++);
 	}
-	
+
 	if (define && i>=0)
 	{
 		sublabels.reset(i);
@@ -476,6 +476,7 @@ int freespaceline[256];
 int freespaceorgpos[256];
 int freespaceorglen[256];
 bool freespacestatic[256];
+unsigned char freespacebyte[256];
 
 void cleartable()
 {
@@ -553,6 +554,7 @@ void initstuff()
 			freespaceleak[i]=true;
 			freespaceorgpos[i]=-2;
 			freespaceorglen[i]=-1;
+			freespacebyte[i] = 0x00;
 		}
 	}
 	arch=arch_65816;
@@ -581,15 +583,15 @@ void initstuff()
 	freespaceid=1;
 	freespaceextra=0;
 	numopcodes=0;
-	
+
 	math_pri=false;
 	math_round=true;
-	
+
 	if (arch==arch_65816) asinit_65816();
 	if (arch==arch_spc700) asinit_spc700();
 	if (arch==arch_spc700_inline) asinit_spc700();
 	if (arch==arch_superfx) asinit_superfx();
-	
+
 	warnxkas=false;
 	emulatexkas=false;
 }
@@ -736,7 +738,7 @@ void assembleblock(const char * block)
 		}
 		if (is("if") && !moreonline) numif++;
 		bool cond;
-		
+
 		char ** nextword=word+1;
 		char * condstr=NULL;
 		while (true)
@@ -758,7 +760,7 @@ void assembleblock(const char * block)
 					//if (foundlabel) error(1, S"Label in "+lower(word[0])+" command");
 					thiscond=(val>0);
 				}
-				
+
 				if (condstr && nextword[1])
 				{
 					if (strcmp(condstr, nextword[1])) error(1, "Invalid condition");
@@ -783,7 +785,7 @@ void assembleblock(const char * block)
 				else if (!strcmp(nextword[1], "!=")) thiscond=(par1!=par2);
 				//else if (!strcmp(nextword[1], "<>")) thiscond=(par1!=par2);
 				else error(0, S"Broken "+lower(word[0])+" command");
-				
+
 				if (condstr && nextword[3])
 				{
 					if (strcmp(condstr, nextword[3])) error(1, "Invalid condition");
@@ -828,7 +830,7 @@ void assembleblock(const char * block)
 		//	if (foundlabel) error(1, "Label in if or assert command");
 		//	cond=(val>0);
 		//}
-		
+
 		if (is("if"))
 		{
 			if(0);
@@ -1022,17 +1024,17 @@ void assembleblock(const char * block)
 		if(numwords < 2) ret_error("Missing struct parameters");
 		if(numwords > 4) ret_error("Too many struct parameters");
 		if (!confirmname(word[1])) ret_error("Invalid struct name");
-		
+
 		snes_struct structure;
 		if(structs.find(word[1], structure) && pass == 0) ret_error("Struct already exists, choose a different name");
-		
+
 		old_snespos = snespos;
 		old_startpos = startpos;
 		old_optimizeforbank = optimizeforbank;
-		
+
 		in_struct = numwords == 2 || numwords == 3;
 		in_sub_struct = numwords == 4;
-		
+
 		if(numwords == 3)
 		{
 			int base = getnum(word[2]);
@@ -1045,17 +1047,17 @@ void assembleblock(const char * block)
 			if (strcasecmp(word[2], "extends")) ret_error("missing extends keyword");
 			if (!confirmname(word[3])) ret_error("Invalid parent name");
 			struct_parent = word[3];
-			
+
 			if(!structs.find(struct_parent, structure)) ret_error("parent struct does not exist");
-			
+
 			snespos=structure.base_end;
 			startpos=structure.base_end;
 		}
-		
+
 		push_pc();
-		
+
 		optimizeforbank=-1;
-		
+
 		struct_name = word[1];
 		struct_base = snespos;
 	}
@@ -1064,32 +1066,32 @@ void assembleblock(const char * block)
 		if(numwords != 1 && numwords != 3) ret_error("Invalid endstruct parameter count");
 		if(numwords == 3 && strcasecmp(word[1], "align")) ret_error("Expected align parameter");
 		if (!in_struct && !in_sub_struct) ret_error("you're not even in a struct.");
-		
+
 		int alignment = numwords == 3 ? getnum(word[2]) : 1;
 		if(alignment < 1) ret_error("Alignment must be >= 1");
-		
+
 		snes_struct structure;
 		structure.base_end = snespos;
 		structure.struct_size = alignment * ((snespos - struct_base + alignment - 1) / alignment);
 		structure.object_size = structure.struct_size;
-		
+
 		if(in_struct)
-		{	
+		{
 			structs.insert(struct_name, structure);
 		}
 		else if(in_sub_struct)
 		{
 			snes_struct parent;
 			structs.find(struct_parent, parent);
-			
+
 			if(parent.object_size < parent.struct_size + structure.struct_size){
 				parent.object_size = parent.struct_size + structure.struct_size;
 			}
-			
+
 			structs.insert(struct_parent + "." + struct_name, structure);
 			structs.insert(struct_parent, parent);
 		}
-		
+
 		pop_pc();
 		in_struct = false;
 		in_sub_struct = false;
@@ -1141,6 +1143,7 @@ void assembleblock(const char * block)
 		if (is("freecode")) parstr=S"ram,"+parstr;
 		if (is("freedata")) parstr=S"noram,"+parstr;
 		autoptr<char**> pars=split(parstr.str, ",");
+		unsigned char fsbyte = 0x00;
 		int useram=-1;
 		bool fixedpos=false;
 		bool align=false;
@@ -1173,13 +1176,17 @@ void assembleblock(const char * block)
 				if (!leakwarn) error(0, "Invalid freespace request.");
 				leakwarn=false;
 			}
-			else error(0, "Invalid freespace request.");
+			else
+			{
+				fsbyte = getnum(pars[i]);
+			}
 		}
 		if (useram==-1) error(0, "Invalid freespace request.");
 		if (mapper==hirom && useram) error(0, "No banks contain the RAM mirrors in hirom.");
 		if (mapper==norom) error(0, "Can't find freespace in norom.");
 		freespaceend();
 		freespaceid=getfreespaceid();
+		freespacebyte[freespaceid] = fsbyte;
 		if (pass==0) snespos=(freespaceid<<24)|0x8000;
 		if (pass==1)
 		{
@@ -1191,7 +1198,7 @@ void assembleblock(const char * block)
 				/*if (freespaceorgpos[freespaceid]==-2)   error(1, "A static freespace must be targeted by at least one autoclean.");*/
 			}
 			if (fixedpos && freespaceorgpos[freespaceid]) freespacepos[freespaceid]=snespos=(freespaceid<<24)|freespaceorgpos[freespaceid];
-			else freespacepos[freespaceid]=snespos=(freespaceid<<24)|getsnesfreespace(freespacelen[freespaceid], useram, true, true, align);
+			else freespacepos[freespaceid]=snespos=(freespaceid<<24)|getsnesfreespace(freespacelen[freespaceid], useram, true, true, align, freespacebyte[freespaceid]);
 		}
 		if (pass==2)
 		{
@@ -1267,7 +1274,7 @@ void assembleblock(const char * block)
 				{
 					ratsloc=ratsstart(orgpos)+8;
 					freespaceorglen[targetid]=read2(ratsloc-4)+1;
-					if (!freespacestatic[targetid] && pass==1) removerats(orgpos);
+					if (!freespacestatic[targetid] && pass==1) removerats(orgpos, freespacebyte[targetid]);
 				}
 				else if (ratsloc<0) ratsloc=0;
 				write1(firstbyte);
@@ -1290,7 +1297,7 @@ void assembleblock(const char * block)
 				if (pass==1 && num>=0)
 				{
 					ratsloc=ratsstart(orgpos)+8;
-					if (!freespacestatic[targetid]) removerats(orgpos);
+					if (!freespacestatic[targetid]) removerats(orgpos, freespacebyte[targetid]);
 				}
 				else if (!ratsloc) ratsloc=0;
 				if ((start==num || start<0) && pass==2)
@@ -1301,7 +1308,7 @@ void assembleblock(const char * block)
 			}
 			else error(0, "Broken autoclean command");
 		}
-		else if (pass==0) removerats(getnum(word[1]));
+		else if (pass==0) removerats(getnum(word[1]), 0x00);
 	}
 	else if (is0("pushpc"))
 	{
@@ -1738,7 +1745,7 @@ bool assemblemapper(char** word, int numwords)
 			sa1banks[1]=(par[2]-'0')<<20;
 			sa1banks[4]=(par[4]-'0')<<20;
 			sa1banks[5]=(par[6]-'0')<<20;
-			
+
 		}
 		else
 		{

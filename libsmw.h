@@ -133,11 +133,10 @@ inline int pctosnes(int addr)
 	return -1;
 }
 
-int getpcfreespace(int size, bool isforcode, bool autoexpand=true, bool respectbankborders=true, bool align=false);
-int getsnesfreespace(int size, bool isforcode, bool autoexpand=true, bool respectbankborders=true, bool align=false);
-
+int getpcfreespace(int size, bool isforcode, bool autoexpand=true, bool respectbankborders=true, bool align=false, unsigned char freespacebyte=0x00);
+int getsnesfreespace(int size, bool isforcode, bool autoexpand=true, bool respectbankborders=true, bool align=false, unsigned char freespacebyte=0x00);
 void resizerats(int snesaddr, int newlen);
-void removerats(int snesaddr);
+void removerats(int snesaddr, unsigned char clean_byte);
 int ratsstart(int pcaddr);
 
 bool goodchecksum();
