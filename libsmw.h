@@ -61,7 +61,7 @@ inline int snestopc(int addr)
 		}
 		if ((addr&0xC00000)==0xC00000)
 		{
-			return sa1banks[(addr&0x700000)>>20]|(addr&0x1FFFFF);
+			return sa1banks[((addr&0x100000)>>20)|((addr&0x200000)>>19)]|(addr&0x0FFFFF);
 		}
 		return -1;
 	}
@@ -105,7 +105,7 @@ inline int pctosnes(int addr)
 	{
 		for (int i=0;i<8;i++)
 		{
-			if (sa1banks[i]==(addr&0x600000)){ return 0x008000|(i<<21)|((addr&((i<4) ? 0x0F8000 : 0x1F8000))<<1)|(addr&0x7FFF);}
+			if (sa1banks[i]==(addr&0x700000)){ return 0x008000|(i<<21)|((addr&0x0F8000)<<1)|(addr&0x7FFF);}
 		}
 		return -1;
 	}
