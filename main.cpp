@@ -167,6 +167,10 @@ static int getlenforlabel(int snespos, int thislabel, bool exists)
 	{
 		return 2;
 	}
+	else if(((thislabel >> 16) & 0x7F) < 0x40 && (thislabel & 0xFFFF) < 0x8000)
+	{
+		return 2;
+	}
 	else if ((thislabel|snespos)&0xFF000000)
 	{
 		if ((thislabel^snespos)&0xFF000000) return 3;
